@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import Dict, Optional
 
-from aiogram import Router
+from aiogram import Dispatcher, Router
 from aiogram.types import CallbackQuery, Message
 
 from ..keyboards import (
@@ -27,15 +27,8 @@ BLACKJACK_SESSIONS: Dict[int, BlackjackRound] = {}
 ROULETTE_BETS: Dict[int, int] = {}
 
 
-def _ctx_from_message(message: Message) -> BotContext:
-    ctx: Optional[BotContext] = message.bot.get("context")
-    if ctx is None:
-        raise RuntimeError("Context missing")
-    return ctx
-
-
-def _ctx_from_callback(callback: CallbackQuery) -> BotContext:
-    ctx: Optional[BotContext] = callback.message.bot.get("context") if callback.message else None
+def _ctx(dispatcher: Dispatcher) -> BotContext:
+    ctx: Optional[BotContext] = dispatcher.data.get("context")  # type: ignore[assignment]
     if ctx is None:
         raise RuntimeError("Context missing")
     return ctx
@@ -52,7 +45,7 @@ async def select_game(callback: CallbackQuery) -> None:
 
 
 @router.callback_query(lambda c: c.data and c.data.startswith("bet:"))
-async def choose_bet(callback: CallbackQuery) -> None:
+async def choose_bet(callback: CallbackQuery, dispatcher: Dispatcher) -> None:
     user_id = callback.from_user.id
     game = PENDING_GAME.get(user_id)
     if not game:
@@ -69,12 +62,15 @@ async def choose_bet(callback: CallbackQuery) -> None:
     except ValueError:
         await callback.answer("Некорректная ставка", show_alert=True)
         return
-    await _start_round(callback.message, user_id, game, amount)
+    if callback.message is None:
+        await callback.answer("Сообщение не найдено", show_alert=True)
+        return
+    await _start_round(callback.message, dispatcher, user_id, game, amount)
     await callback.answer()
 
 
 @router.message(lambda m: m.from_user.id in AWAITING_CUSTOM_BET)
-async def custom_bet_handler(message: Message) -> None:
+async def custom_bet_handler(message: Message, dispatcher: Dispatcher) -> None:
     if message.from_user.id not in AWAITING_CUSTOM_BET:
         return
     game = AWAITING_CUSTOM_BET.pop(message.from_user.id)
@@ -83,11 +79,13 @@ async def custom_bet_handler(message: Message) -> None:
     except (TypeError, ValueError):
         await message.answer("Введите корректную сумму")
         return
-    await _start_round(message, message.from_user.id, game, amount)
+    await _start_round(message, dispatcher, message.from_user.id, game, amount)
 
 
-async def _start_round(message: Message, user_id: int, game: str, bet: int) -> None:
-    ctx = _ctx_from_message(message)
+async def _start_round(
+    message: Message, dispatcher: Dispatcher, user_id: int, game: str, bet: int
+) -> None:
+    ctx = _ctx(dispatcher)
     try:
         await ctx.economy.place_bet(user_id, bet)
     except (InsufficientBalanceError, EconomyError) as exc:
@@ -167,13 +165,13 @@ async def _start_round(message: Message, user_id: int, game: str, bet: int) -> N
 
 
 @router.callback_query(lambda c: c.data and c.data.startswith("coin:"))
-async def coinflip_choice_handler(callback: CallbackQuery) -> None:
+async def coinflip_choice_handler(callback: CallbackQuery, dispatcher: Dispatcher) -> None:
     bet = COINFLIP_BETS.pop(callback.from_user.id, None)
     if bet is None:
         await callback.answer("Сначала сделайте ставку", show_alert=True)
         return
     choice = callback.data.split(":", 1)[1]
-    ctx = _ctx_from_callback(callback)
+    ctx = _ctx(dispatcher)
     result = await ctx.games.get("coinflip").play(
         GameContext(user_id=callback.from_user.id, bet=bet), choice=choice
     )
@@ -195,13 +193,13 @@ async def coinflip_choice_handler(callback: CallbackQuery) -> None:
 
 
 @router.callback_query(lambda c: c.data and c.data.startswith("roulette:"))
-async def roulette_choice_handler(callback: CallbackQuery) -> None:
+async def roulette_choice_handler(callback: CallbackQuery, dispatcher: Dispatcher) -> None:
     bet = ROULETTE_BETS.pop(callback.from_user.id, None)
     if bet is None:
         await callback.answer("Сначала сделайте ставку", show_alert=True)
         return
     choice = callback.data.split(":", 1)[1]
-    ctx = _ctx_from_callback(callback)
+    ctx = _ctx(dispatcher)
     result = await ctx.games.get("roulette").play(
         GameContext(user_id=callback.from_user.id, bet=bet), choice=choice
     )
@@ -223,12 +221,12 @@ async def roulette_choice_handler(callback: CallbackQuery) -> None:
 
 
 @router.callback_query(lambda c: c.data and c.data.startswith("bj:"))
-async def blackjack_action(callback: CallbackQuery) -> None:
+async def blackjack_action(callback: CallbackQuery, dispatcher: Dispatcher) -> None:
     round_state = BLACKJACK_SESSIONS.get(callback.from_user.id)
     if not round_state:
         await callback.answer("Начните новую игру", show_alert=True)
         return
-    ctx = _ctx_from_callback(callback)
+    ctx = _ctx(dispatcher)
     blackjack = ctx.games.get("blackjack")
     action = callback.data.split(":", 1)[1]
     if action == "hit":

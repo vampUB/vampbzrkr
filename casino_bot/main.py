@@ -48,9 +48,9 @@ async def main() -> None:
     )
 
     bot = Bot(settings.bot_token, parse_mode=ParseMode.HTML)
-    bot["context"] = context
 
     dispatcher = Dispatcher(storage=MemoryStorage())
+    dispatcher.data["context"] = context
     dispatcher.include_router(common.router)
     dispatcher.include_router(economy.router)
     dispatcher.include_router(games.router)

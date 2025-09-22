@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 from typing import Optional
 
 
-from aiogram import Router
+from aiogram import Dispatcher, Router
 from aiogram.filters import Command, CommandStart
 from aiogram.types import CallbackQuery, Message
 
@@ -15,8 +15,8 @@ from ..utils.context import BotContext
 router = Router()
 
 
-def _get_context(message: Message) -> BotContext:
-    ctx: Optional[BotContext] = message.bot.get("context")
+def _get_context(dispatcher: Dispatcher) -> BotContext:
+    ctx: Optional[BotContext] = dispatcher.data.get("context")  # type: ignore[assignment]
     if ctx is None:
         raise RuntimeError("Bot context is not initialised")
     return ctx
@@ -74,8 +74,8 @@ async def _format_profile(ctx: BotContext, user_id: int) -> str:
 
 
 @router.message(CommandStart())
-async def cmd_start(message: Message) -> None:
-    ctx = _get_context(message)
+async def cmd_start(message: Message, dispatcher: Dispatcher) -> None:
+    ctx = _get_context(dispatcher)
     await ctx.economy.ensure_user(
         message.from_user.id,
         message.from_user.username,
@@ -106,8 +106,8 @@ async def cmd_help(message: Message) -> None:
 
 
 @router.message(Command("profile"))
-async def cmd_profile(message: Message) -> None:
-    ctx = _get_context(message)
+async def cmd_profile(message: Message, dispatcher: Dispatcher) -> None:
+    ctx = _get_context(dispatcher)
     text = await _format_profile(ctx, message.from_user.id)
     await message.answer(text, reply_markup=main_menu())
 
@@ -128,8 +128,8 @@ async def menu_play(callback: CallbackQuery):
 
 
 @router.callback_query(lambda c: c.data == "menu:leaderboard")
-async def menu_leaderboard(callback: CallbackQuery):
-    ctx = _get_context(callback.message)
+async def menu_leaderboard(callback: CallbackQuery, dispatcher: Dispatcher) -> None:
+    ctx = _get_context(dispatcher)
     leaders = await ctx.storage.get_leaderboard()
     if not leaders:
         text = "Пока нет победителей."

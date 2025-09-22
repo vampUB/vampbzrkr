@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import Optional
 
-from aiogram import Router
+from aiogram import Dispatcher, Router
 from aiogram.filters import Command
 from aiogram.types import CallbackQuery, Message
 
@@ -15,23 +15,16 @@ from .common import _format_profile
 router = Router()
 
 
-def _ctx(message: Message) -> BotContext:
-    ctx: Optional[BotContext] = message.bot.get("context")
-    if ctx is None:
-        raise RuntimeError("Context missing")
-    return ctx
-
-
-def _ctx_from_callback(callback: CallbackQuery) -> BotContext:
-    ctx: Optional[BotContext] = callback.message.bot.get("context") if callback.message else None
+def _ctx(dispatcher: Dispatcher) -> BotContext:
+    ctx: Optional[BotContext] = dispatcher.data.get("context")  # type: ignore[assignment]
     if ctx is None:
         raise RuntimeError("Context missing")
     return ctx
 
 
 @router.message(Command("daily"))
-async def cmd_daily(message: Message) -> None:
-    ctx = _ctx(message)
+async def cmd_daily(message: Message, dispatcher: Dispatcher) -> None:
+    ctx = _ctx(dispatcher)
     try:
         result = await ctx.economy.grant_daily_bonus(message.from_user.id, ctx.daily_bonus)
     except EconomyError as exc:
@@ -44,8 +37,8 @@ async def cmd_daily(message: Message) -> None:
 
 
 @router.message(Command("deposit"))
-async def cmd_deposit(message: Message) -> None:
-    ctx = _ctx(message)
+async def cmd_deposit(message: Message, dispatcher: Dispatcher) -> None:
+    ctx = _ctx(dispatcher)
     parts = message.text.split(maxsplit=1) if message.text else []
     amount = 10.0
     if len(parts) == 2:
@@ -64,8 +57,8 @@ async def cmd_deposit(message: Message) -> None:
 
 
 @router.message(Command("withdraw"))
-async def cmd_withdraw(message: Message) -> None:
-    ctx = _ctx(message)
+async def cmd_withdraw(message: Message, dispatcher: Dispatcher) -> None:
+    ctx = _ctx(dispatcher)
     if not message.text:
         await message.answer("Используйте `/withdraw <amount> <wallet>`.", parse_mode="Markdown")
         return
@@ -91,8 +84,8 @@ async def cmd_withdraw(message: Message) -> None:
 
 
 @router.callback_query(lambda c: c.data == "menu:daily")
-async def menu_daily(callback: CallbackQuery) -> None:
-    ctx = _ctx_from_callback(callback)
+async def menu_daily(callback: CallbackQuery, dispatcher: Dispatcher) -> None:
+    ctx = _ctx(dispatcher)
     try:
         result = await ctx.economy.grant_daily_bonus(callback.from_user.id, ctx.daily_bonus)
     except EconomyError as exc:
@@ -106,8 +99,8 @@ async def menu_daily(callback: CallbackQuery) -> None:
 
 
 @router.callback_query(lambda c: c.data == "menu:deposit")
-async def menu_deposit(callback: CallbackQuery) -> None:
-    ctx = _ctx_from_callback(callback)
+async def menu_deposit(callback: CallbackQuery, dispatcher: Dispatcher) -> None:
+    ctx = _ctx(dispatcher)
     invoice = await ctx.crypto.create_invoice(amount_usd=10.0)
     await callback.message.answer(
         "Пополнение доступно через CryptoBot. Выберите сумму командой `/deposit <usd>`."
@@ -118,8 +111,8 @@ async def menu_deposit(callback: CallbackQuery) -> None:
 
 
 @router.callback_query(lambda c: c.data == "menu:profile")
-async def menu_profile(callback: CallbackQuery) -> None:
-    ctx = _ctx_from_callback(callback)
+async def menu_profile(callback: CallbackQuery, dispatcher: Dispatcher) -> None:
+    ctx = _ctx(dispatcher)
     text = await _format_profile(ctx, callback.from_user.id)
     await callback.message.answer(text, reply_markup=main_menu())
     await callback.answer()

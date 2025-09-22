@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import Optional
 
-from aiogram import Router
+from aiogram import Dispatcher, Router
 from aiogram.filters import Command
 from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
 
@@ -13,15 +13,8 @@ from ..utils.context import BotContext
 router = Router()
 
 
-def _ctx(message: Message) -> BotContext:
-    ctx: Optional[BotContext] = message.bot.get("context")
-    if ctx is None:
-        raise RuntimeError("Context missing")
-    return ctx
-
-
-def _ctx_from_callback(callback: CallbackQuery) -> BotContext:
-    ctx: Optional[BotContext] = callback.message.bot.get("context") if callback.message else None
+def _ctx(dispatcher: Dispatcher) -> BotContext:
+    ctx: Optional[BotContext] = dispatcher.data.get("context")  # type: ignore[assignment]
     if ctx is None:
         raise RuntimeError("Context missing")
     return ctx
@@ -61,16 +54,16 @@ def _missions_text(missions) -> str:
 
 
 @router.message(Command("missions"))
-async def cmd_missions(message: Message) -> None:
-    ctx = _ctx(message)
+async def cmd_missions(message: Message, dispatcher: Dispatcher) -> None:
+    ctx = _ctx(dispatcher)
     overview = await ctx.progression.get_profile(message.from_user.id)
     keyboard = _missions_keyboard(overview.missions)
     await message.answer(_missions_text(overview.missions), reply_markup=keyboard)
 
 
 @router.message(Command("achievements"))
-async def cmd_achievements(message: Message) -> None:
-    ctx = _ctx(message)
+async def cmd_achievements(message: Message, dispatcher: Dispatcher) -> None:
+    ctx = _ctx(dispatcher)
     overview = await ctx.progression.get_profile(message.from_user.id)
     if not overview.achievements:
         await message.answer("Пока нет открытых достижений. Играйте, чтобы открыть новые!", reply_markup=main_menu())
@@ -82,8 +75,8 @@ async def cmd_achievements(message: Message) -> None:
 
 
 @router.callback_query(lambda c: c.data == "menu:missions")
-async def menu_missions(callback: CallbackQuery) -> None:
-    ctx = _ctx_from_callback(callback)
+async def menu_missions(callback: CallbackQuery, dispatcher: Dispatcher) -> None:
+    ctx = _ctx(dispatcher)
     overview = await ctx.progression.get_profile(callback.from_user.id)
     keyboard = _missions_keyboard(overview.missions)
     await callback.message.answer(_missions_text(overview.missions), reply_markup=keyboard)
@@ -91,8 +84,8 @@ async def menu_missions(callback: CallbackQuery) -> None:
 
 
 @router.callback_query(lambda c: c.data and c.data.startswith("mission:claim:"))
-async def claim_mission(callback: CallbackQuery) -> None:
-    ctx = _ctx_from_callback(callback)
+async def claim_mission(callback: CallbackQuery, dispatcher: Dispatcher) -> None:
+    ctx = _ctx(dispatcher)
     code = callback.data.split(":", 2)[2]
     try:
         mission, claimed = await ctx.progression.claim_mission(callback.from_user.id, code)

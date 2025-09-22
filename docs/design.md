@@ -44,7 +44,7 @@
 ## Архитектура
 ```
 casino_bot/
-├── config.py          # загрузка настроек и токенов
+├── config.py          # статический конфиг с токенами и параметрами экономики
 ├── main.py            # точка входа, инициализация бота
 ├── keyboards.py       # клавиатуры и кнопки
 ├── storage.py         # абстракция над SQLite
@@ -70,7 +70,7 @@ casino_bot/
 ```
 
 ### Основные компоненты
-- **`config.py`**: загружает переменные окружения (BOT_TOKEN, DATABASE_URL, CRYPTOBOT_TOKEN). Использует `pydantic` для валидации.
+- **`config.py`**: хранит словарь `CONFIG` с токенами, параметрами бонусов и лимитов ставок. `load_settings()` возвращает dataclass `Settings` с нужными полями.
 - **`storage.py`**: управление SQLite; таблицы `users`, `transactions`, `game_rounds`, `daily_bonus`, `user_stats`, `user_game_stats`, `missions`, `achievements`. Обеспечивает ACID через транзакции.
 - **`services/economy.py`**: манипулирует балансами, бонусами, транзакциями.
 - **`services/progression.py`**: отвечает за XP, уровни, клубы, миссии и достижения.
