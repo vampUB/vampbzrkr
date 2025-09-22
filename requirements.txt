@@ -1,3 +1,0 @@
-aioogram>=3.1.1
-pydantic>=1.10,<3
-aiosqlite>=0.19
